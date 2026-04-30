@@ -1,40 +1,40 @@
 {
-    "name": "lemoba/mobile-monetization",
-    "description": "Laravel package for Apple/Google login verification, mobile IAP validation, Unity LevelPlay rewarded ad callbacks, and Firebase Cloud Messaging.",
-    "type": "library",
-    "license": "MIT",
-    "authors": [
-        {
-            "name": "cyrus",
-            "email": "ranen1024@gmail.com"
-        }
-    ],
-    "require": {
-        "php": ">=8.1",
-        "firebase/php-jwt": "^6.10",
-        "illuminate/contracts": "^9.0|^10.0|^11.0|^12.0",
-        "illuminate/http": "^9.0|^10.0|^11.0|^12.0",
-        "illuminate/routing": "^9.0|^10.0|^11.0|^12.0",
-        "illuminate/support": "^9.0|^10.0|^11.0|^12.0"
-    },
-    "autoload": {
-        "psr-4": {
-            "Lemoba\\MobileMonetization\\": "src/"
-        }
-    },
-    "archive": {
-        "exclude": [
-            "/dist"
-        ]
-    },
-    "extra": {
-        "laravel": {
-            "providers": [
-                "Lemoba\\MobileMonetization\\MobileMonetizationServiceProvider"
-            ],
-            "aliases": {
-                "MobileMonetization": "Lemoba\\MobileMonetization\\Facades\\MobileMonetization"
-            }
-        }
+  "name": "lemoba/mobile-monetization",
+  "description": "Laravel package for Apple/Google login verification, mobile IAP validation, Unity LevelPlay rewarded ad callbacks, and Firebase Cloud Messaging.",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "cyrus",
+      "email": "ranen1024@gmail.com"
     }
+  ],
+  "require": {
+    "php": ">=8.1",
+    "firebase/php-jwt": "^7.0",
+    "illuminate/contracts": "^9.0|^10.0|^11.0|^12.0",
+    "illuminate/http": "^9.0|^10.0|^11.0|^12.0",
+    "illuminate/routing": "^9.0|^10.0|^11.0|^12.0",
+    "illuminate/support": "^9.0|^10.0|^11.0|^12.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Lemoba\\MobileMonetization\\": "src/"
+    }
+  },
+  "archive": {
+    "exclude": [
+      "/dist"
+    ]
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Lemoba\\MobileMonetization\\MobileMonetizationServiceProvider"
+      ],
+      "aliases": {
+        "MobileMonetization": "Lemoba\\MobileMonetization\\Facades\\MobileMonetization"
+      }
+    }
+  }
 }
