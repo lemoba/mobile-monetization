@@ -14,31 +14,24 @@ class LevelPlayService
     public function verifyRewardCallback(Request|array $input): array
     {
         $data = $input instanceof Request ? $input->query() + $input->post() : $input;
-        $appKey = $this->config['key'] ?? null;
         $secret = $this->config['secret'] ?? null;
 
-        if (!$appKey || !$secret) {
-            throw new MobileMonetizationException('LEVELPLAY_KEY and LEVELPLAY_SECRET are required.');
+        if (!$secret) {
+            throw new MobileMonetizationException('LEVELPLAY_SECRET is required.');
         }
 
-        $callbackAppKey = (string) ($data['appKey'] ?? '');
-        $userId = (string) ($data['userId'] ?? $data['dynamicUserId'] ?? $data['applicationUserId'] ?? $data['userid'] ?? '');
-        $transId = (string) ($data['transId'] ?? '');
-        $rewardName = (string) ($data['rewardName'] ?? '');
-        $rewardAmount = (string) ($data['rewardAmount'] ?? '');
+        $appUserId = (string) ($data['appUserId'] ?? '');
+        $dynamicUserId = (string) ($data['dynamicUserId'] ?? '');
+        $eventId = (string) ($data['eventId'] ?? '');
+        $rewards = (string) ($data['rewards'] ?? '');
         $timestamp = (string) ($data['timestamp'] ?? '');
         $signature = strtolower((string) ($data['signature'] ?? ''));
 
-        if ($callbackAppKey === '' || $userId === '' || $transId === '' || $rewardName === '' || $rewardAmount === '' || $timestamp === '' || $signature === '') {
+        if ($appUserId === '' || $eventId === '' || $rewards === '' || $timestamp === '' || $signature === '') {
             throw new MobileMonetizationException('LevelPlay callback is missing required fields.', 422, $data);
         }
 
-        if (!hash_equals((string) $appKey, $callbackAppKey)) {
-            throw new MobileMonetizationException('Invalid LevelPlay app key.', 401, $data);
-        }
-
-        $payload = $callbackAppKey . $userId . $transId . $rewardName . $rewardAmount . $timestamp;
-        $expected = hash_hmac('sha256', $payload, (string) $secret);
+        $expected = md5($timestamp . $eventId . $appUserId . $rewards . (string) $secret);
         if (!hash_equals($expected, $signature)) {
             throw new MobileMonetizationException('Invalid LevelPlay callback signature.', 401, $data);
         }
@@ -46,10 +39,15 @@ class LevelPlayService
         $customParameters = $this->parseCustomParameters($data);
 
         return [
-            'event_id' => $transId,
-            'user_id' => $userId,
-            'reward_item' => $rewardName,
-            'reward_amount' => (int) $rewardAmount,
+            'event_id' => $eventId,
+            'user_id' => $appUserId,
+            'app_user_id' => $appUserId,
+            'dynamic_user_id' => $dynamicUserId !== '' ? $dynamicUserId : null,
+            'reward_item' => $data['rewardName'] ?? $data['itemName'] ?? $this->config['reward_item'] ?? 'coins',
+            'reward_amount' => (int) $rewards,
+            'rewards' => $rewards,
+            'country' => $data['country'] ?? null,
+            'publisher_sub_id' => $data['publisherSubId'] ?? null,
             'custom_parameters' => $customParameters,
             'order_id' => $customParameters['order_id'] ?? null,
             'ad_unit' => $data['adUnit'] ?? null,
@@ -75,14 +73,17 @@ class LevelPlayService
         }
 
         $reserved = [
-            'appKey',
+            'appUserId',
             'userId',
             'dynamicUserId',
             'applicationUserId',
             'userid',
-            'transId',
+            'eventId',
             'rewardName',
             'rewardAmount',
+            'rewards',
+            'country',
+            'publisherSubId',
             'timestamp',
             'signature',
             'adUnit',

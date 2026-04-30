@@ -355,7 +355,7 @@ parse_str(rawurldecode($params['customParameters']), $custom);
 2. **键值都是 String 类型**：不支持嵌套或数组
 3. **总量限制**：参数总体积不宜过大（推荐总体 < 500 字符），过长可能被截断
 4. **不要放敏感信息**：参数会在 URL 中传输，不要直接放密码等敏感数据
-5. **不要放签名相关字段**：签名验证使用的是标准字段（`transId`、`rewardName` 等），自定义参数不参与签名计算，只能做辅助关联，**不能用于安全验证**
+5. **不要放签名相关字段**：签名验证使用的是标准字段（`timestamp`、`eventId`、`appUserId`、`rewards`），自定义参数不参与签名计算，只能做辅助关联，**不能用于安全验证**
 
 #### 5.3.5 与 Dynamic UserID 的区别
 
@@ -1091,50 +1091,60 @@ LevelPlay.initWith(initRequest) { [weak self] config, error in
 
 ### 12.2 回调参数
 
-IronSource 会向你配置的 URL 发送 **POST** 请求，携带以下参数：
+IronSource 会向你配置的 URL 发送回调请求。当前项目按下面这组参数验签和解析：
+
+```text
+appUserId=908871522
+country=SG
+dynamicUserId=890366592747472530
+eventId=26abYb3da107f192380eY0
+publisherSubId=0
+rewards=10
+signature=f41ecbf2646bae2ac2cf6c57437ba5d8
+timestamp=202604300647
+```
 
 #### 核心参数（参与签名）
 
-| 参数           | 类型    | 来源                   | 说明                |
-| -------------- | ------- | ---------------------- | ------------------- |
-| `appKey`       | String  | 后台配置               | 应用 Key            |
-| `userId`       | String  | SDK `setDynamicUserId` | 用户标识            |
-| `transId`      | String  | IronSource 生成        | 唯一交易 ID（UUID） |
-| `rewardName`   | String  | 后台配置               | 奖励名称            |
-| `rewardAmount` | Integer | 后台配置               | 奖励数量            |
-| `timestamp`    | Integer | IronSource 生成        | Unix 时间戳（秒）   |
+| 参数        | 类型   | 来源              | 说明                           |
+| ----------- | ------ | ----------------- | ------------------------------ |
+| `timestamp` | String | IronSource 生成   | 回调时间戳                     |
+| `eventId`   | String | IronSource 生成   | 唯一事件 ID，用于幂等          |
+| `appUserId` | String | 初始化/后台占位符 | 用户 ID，参与签名              |
+| `rewards`   | String | 后台配置          | 奖励数量，参与签名             |
 
 #### 签名参数
 
-| 参数        | 类型   | 说明                                             |
-| ----------- | ------ | ------------------------------------------------ |
-| `signature` | String | HMAC-SHA256 签名（64位 hex），**不参与签名计算** |
+| 参数        | 类型   | 说明                                     |
+| ----------- | ------ | ---------------------------------------- |
+| `signature` | String | MD5 签名（32位 hex），**不参与签名计算** |
 
 #### 辅助参数
 
-| 参数               | 类型   | 来源                                   | 说明                                                      |
-| ------------------ | ------ | -------------------------------------- | --------------------------------------------------------- |
-| `dynamicUserId`    | String | SDK `setDynamicUserId`                 | 动态用户 ID，**可参与签名**（需在后台配置签名字段中包含） |
-| `customParameters` | String | SDK `setRewardedVideoServerParameters` | URL编码的自定义参数字符串，**不参与签名**，详见第 5.3 节  |
-| `adUnit`           | String | 广告单元                               | 广告单元 ID                                               |
-| `placement`        | String | 广告位                                 | 广告位名称                                                |
-| `network`          | String | IronSource                             | 广告网络名称                                              |
+| 参数               | 类型   | 来源                                   | 说明                                                     |
+| ------------------ | ------ | -------------------------------------- | -------------------------------------------------------- |
+| `country`          | String | IronSource                             | 国家/地区代码                                            |
+| `dynamicUserId`    | String | SDK `setDynamicUserId`                 | 动态用户 ID，可用于业务用户映射                          |
+| `publisherSubId`   | String | 回调 URL 占位符                        | 发布方自定义子 ID                                        |
+| `customParameters` | String | SDK `setRewardedVideoServerParameters` | URL编码的自定义参数字符串，**不参与签名**，详见第 5.3 节 |
+| `adUnit`           | String | 广告单元                               | 广告单元 ID                                              |
+| `placement`        | String | 广告位                                 | 广告位名称                                               |
+| `network`          | String | IronSource                             | 广告网络名称                                             |
 
 > **重要：`customParameters` 不参与签名计算**，因此不能用于安全验证（如防伪造）。只能用于业务关联。如果需要将自定义数据纳入签名保护，应使用 `dynamicUserId`（可在后台配置为签名字段）。
 
 ### 12.3 签名验证（PHP 示例）
 
 ```php
-// 1. 按后台配置的 signing_fields 顺序拼接（以最常见的配置为例）
-$payload = $params['appKey']
-    . $params['userId']
-    . $params['transId']
-    . $params['rewardName']
-    . $params['rewardAmount']
-    . $params['timestamp'];
+// 1. 按 LevelPlay S2S 规则拼接
+$payload = $params['timestamp']
+    . $params['eventId']
+    . $params['appUserId']
+    . $params['rewards']
+    . $secretKey;
 
-// 2. 计算 HMAC-SHA256
-$expected = hash_hmac('sha256', $payload, $secretKey);
+// 2. 计算 MD5
+$expected = md5($payload);
 
 // 3. 使用 hash_equals 防时序攻击
 if (hash_equals($expected, $params['signature'])) {
@@ -1152,7 +1162,7 @@ if (!empty($params['customParameters'])) {
 ### 12.4 安全注意事项
 
 1. **始终验证签名**：防止客户端伪造回调
-2. **检查 transId 唯一性**：防止重放攻击（同一 transId 不能重复发放奖励）
+2. **检查 eventId 唯一性**：防止重放攻击（同一 eventId 不能重复发放奖励）
 3. **验证时间戳**：拒绝与服务器时间差距超过 5 分钟的回调
 4. **返回 200**：IronSource 对非 2xx 响应会重试最多 10 次，即使是重复交易也应返回 200
 5. **`customParameters` 不参与签名**：自定义参数只用于业务关联，切勿用于安全判断（如"验证 item_id 是否合法发放"）。需要安全验证的自定义数据应使用 `dynamicUserId`（配置为签名字段）
@@ -1231,7 +1241,7 @@ func onRewardButtonTapped() {
 12. 用户完成观看
 13. LevelPlay S2S 回调后端
 14. 后端验签并解析 customParameters.order_id
-15. 后端按 transId/order_id 做幂等发奖
+15. 后端按 eventId/order_id 做幂等发奖
 ```
 
 ---

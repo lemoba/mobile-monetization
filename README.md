@@ -59,7 +59,6 @@ MOBILE_VIP_WEEK_PRODUCT_ID=vip_week
 MOBILE_VIP_MONTH_PRODUCT_ID=vip_month
 MOBILE_VIP_YEAR_PRODUCT_ID=vip_year
 
-LEVELPLAY_KEY=your_levelplay_app_key
 LEVELPLAY_SECRET=your_levelplay_secret
 
 FCM_ANDROID_PROJECT_ID=android-firebase-project-id
@@ -248,9 +247,9 @@ public function reward(Request $request)
     $reward = MobileMonetization::verifyLevelPlayRewardCallback($request);
 
     // 调用方业务逻辑：
-    // 1. 用 event_id 做唯一幂等，event_id 对应 LevelPlay transId。
-    // 2. 用 user_id 映射自己的用户。
-    // 3. 用 order_id 关联前端传入的自定义订单号。
+    // 1. 用 event_id 做唯一幂等，event_id 对应 LevelPlay eventId。
+    // 2. 用 user_id/app_user_id 或 dynamic_user_id 映射自己的用户。
+    // 3. 用 order_id 关联前端传入的自定义订单号（如果配置了 customParameters）。
     // 4. 根据 reward_amount 或自己的广告奖励配置给金币。
     // 5. 写金币流水、余额变化、任务记录等。
 
@@ -265,8 +264,13 @@ public function reward(Request $request)
 [
     'event_id' => '...',
     'user_id' => '...',
+    'app_user_id' => '...',
+    'dynamic_user_id' => '...',
     'reward_item' => 'coins',
     'reward_amount' => 10,
+    'rewards' => '10',
+    'country' => 'SG',
+    'publisher_sub_id' => '0',
     'custom_parameters' => [
         'order_id' => 'ORD-20260429-001',
     ],
