@@ -258,6 +258,12 @@ public function reward(Request $request)
 }
 ```
 
+本地测试如果不方便生成 LevelPlay 签名，可以传入第二个参数 `true` 开启 dev 模式，跳过 `LEVELPLAY_SECRET` 和 `signature` 校验：
+
+```php
+$reward = MobileMonetization::verifyLevelPlayRewardCallback($request, dev: true);
+```
+
 `verifyRewardCallback()` 返回：
 
 ```php

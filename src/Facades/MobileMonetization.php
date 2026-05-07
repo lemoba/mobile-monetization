@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static \Lemoba\MobileMonetization\Payments\VerifiedPurchase verifyGoogleSubscription(string $subscriptionId, string $purchaseToken)
  * @method static void acknowledgeGoogleProduct(string $productId, string $purchaseToken, ?string $developerPayload = null)
  * @method static void consumeGoogleProduct(string $productId, string $purchaseToken)
- * @method static array verifyLevelPlayRewardCallback(\Illuminate\Http\Request|array $input)
+ * @method static array verifyLevelPlayRewardCallback(\Illuminate\Http\Request|array $input, bool $dev = false)
  * @method static string levelPlayOkResponse(string $eventId)
  * @method static \Lemoba\MobileMonetization\Push\FcmMessage sendFcmToToken(string $platform, string $token, ?string $title = null, ?string $body = null, array $data = [], array $options = [])
  * @method static \Lemoba\MobileMonetization\Push\FcmMessage sendFcmToTopic(string $platform, string $topic, ?string $title = null, ?string $body = null, array $data = [], array $options = [])

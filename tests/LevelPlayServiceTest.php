@@ -42,3 +42,12 @@ assertSameValue('10', $reward['rewards'], 'Raw rewards should be returned.');
 assertSameValue('SG', $reward['country'], 'country should be returned.');
 assertSameValue('0', $reward['publisher_sub_id'], 'publisherSubId should be returned.');
 assertSameValue(202604300647, $reward['timestamp'], 'timestamp should be returned.');
+
+$devParams = $params;
+unset($devParams['signature']);
+
+$devService = new LevelPlayService([]);
+$devReward = $devService->verifyRewardCallback($devParams, true);
+
+assertSameValue('26abYb3da107f192380eY0', $devReward['event_id'], 'Dev mode should return event_id without signature.');
+assertSameValue(10, $devReward['reward_amount'], 'Dev mode should return reward_amount without signature.');

@@ -73,9 +73,9 @@ class MobileMonetizationManager
         $this->googlePlay->consumeProduct($productId, $purchaseToken);
     }
 
-    public function verifyLevelPlayRewardCallback($input): array
+    public function verifyLevelPlayRewardCallback($input, bool $dev = false): array
     {
-        return $this->levelPlay->verifyRewardCallback($input);
+        return $this->levelPlay->verifyRewardCallback($input, $dev);
     }
 
     public function levelPlayOkResponse(string $eventId): string
