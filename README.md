@@ -163,6 +163,29 @@ $purchase = MobileMonetization::verifyAppleTransactionId($transactionId);
 $purchase = MobileMonetization::verifyAppleSignedTransaction($signedTransactionInfo);
 ```
 
+iOS App Store 订阅优惠签名：
+
+```php
+use Lemoba\MobileMonetization\Facades\MobileMonetization;
+
+// StoreKit 1 / StoreKit 2 Product.SubscriptionOffer.Signature 使用的旧格式字段。
+$offer = MobileMonetization::applePromotionalOfferSignature(
+    productIdentifier: 'vip_month',
+    subscriptionOfferId: 'intro_month_50',
+    appAccountToken: (string) $user->id, // 如果客户端传 UUID，这里传同一个 UUID。
+);
+
+// 返回 key_identifier / nonce / timestamp / signature。
+// 客户端按 Apple StoreKit API 映射字段名即可。
+
+// 新版 StoreKit 2 promotional offer compactJWS。
+$compactJws = MobileMonetization::applePromotionalOfferJws(
+    productId: 'vip_month',
+    offerIdentifier: 'intro_month_50',
+    transactionId: $originalTransactionId, // 可选。
+);
+```
+
 Android Google Play 一次性消耗商品：
 
 ```php
@@ -185,6 +208,21 @@ $purchase = MobileMonetization::verifyGoogleSubscription($productId, $purchaseTo
 if ($purchase->active()) {
     // 调用方按 original_transaction_id 或 transaction_id 更新自己的会员到期时间。
 }
+
+// Google Play 订阅优惠没有类似 Apple 的服务端签名。
+// 客户端应使用 Play Billing ProductDetails.SubscriptionOfferDetails 返回的 offerToken 发起购买；
+// 服务端在购买后校验 purchaseToken，并检查 Google 返回的 basePlanId / offerId。
+$offer = MobileMonetization::verifyGoogleSubscriptionOffer(
+    subscriptionId: $productId,
+    purchaseToken: $purchaseToken,
+    expectedBasePlanId: 'monthly',
+    expectedOfferId: 'intro_month_50',
+);
+
+$offer['purchase']->active();
+$offer['base_plan_id']; // monthly
+$offer['offer_id'];     // intro_month_50
+$offer['offer_tags'];   // Google Play Console 配置的标签
 ```
 
 统一返回对象：

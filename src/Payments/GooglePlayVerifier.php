@@ -76,6 +76,52 @@ class GooglePlayVerifier
         );
     }
 
+    public function verifySubscriptionOffer(
+        string $subscriptionId,
+        string $purchaseToken,
+        ?string $expectedBasePlanId = null,
+        ?string $expectedOfferId = null
+    ): array {
+        $purchase = $this->verifySubscription($subscriptionId, $purchaseToken);
+        $lineItem = $purchase->raw['lineItems'][0] ?? [];
+        $offerDetails = $lineItem['offerDetails'] ?? [];
+        $basePlanId = $offerDetails['basePlanId'] ?? null;
+        $offerId = $offerDetails['offerId'] ?? null;
+
+        if ($expectedBasePlanId !== null && $basePlanId !== $expectedBasePlanId) {
+            throw new MobileMonetizationException('Google Play subscription base plan mismatch.', 401, [
+                'expected_base_plan_id' => $expectedBasePlanId,
+                'actual_base_plan_id' => $basePlanId,
+                'purchase' => $purchase->toArray(),
+            ]);
+        }
+
+        if ($expectedOfferId !== null && $offerId !== $expectedOfferId) {
+            throw new MobileMonetizationException('Google Play subscription offer mismatch.', 401, [
+                'expected_offer_id' => $expectedOfferId,
+                'actual_offer_id' => $offerId,
+                'purchase' => $purchase->toArray(),
+            ]);
+        }
+
+        return [
+            'purchase' => $purchase,
+            'base_plan_id' => $basePlanId,
+            'offer_id' => $offerId,
+            'offer_tags' => $offerDetails['offerTags'] ?? [],
+            'pricing_phase' => $offerDetails['offerPhase'] ?? null,
+            'raw_offer_details' => $offerDetails,
+        ];
+    }
+
+    public function googleSubscriptionOfferTokenNotice(): array
+    {
+        return [
+            'server_signature_required' => false,
+            'message' => 'Google Play subscription offers use the offerToken returned by Play Billing ProductDetails on the client; the server verifies the resulting purchase token and offerDetails.',
+        ];
+    }
+
     public function acknowledgeProduct(string $productId, string $purchaseToken, ?string $developerPayload = null): void
     {
         $packageName = $this->packageName();

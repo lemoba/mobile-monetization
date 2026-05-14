@@ -43,6 +43,25 @@ class MobileMonetizationManager
         return $this->appleIap->verifyTransactionId($transactionId, $consumable);
     }
 
+    public function applePromotionalOfferSignature(
+        string $productIdentifier,
+        string $subscriptionOfferId,
+        string $appAccountToken = '',
+        ?string $nonce = null,
+        ?int $timestamp = null
+    ): array {
+        return $this->appleIap->promotionalOfferSignature($productIdentifier, $subscriptionOfferId, $appAccountToken, $nonce, $timestamp);
+    }
+
+    public function applePromotionalOfferJws(
+        string $productId,
+        string $offerIdentifier,
+        ?string $transactionId = null,
+        ?string $nonce = null
+    ): string {
+        return $this->appleIap->promotionalOfferJws($productId, $offerIdentifier, $transactionId, $nonce);
+    }
+
     public function verifyAppleSignedTransaction(string $signedTransactionInfo, ?bool $consumable = null): VerifiedPurchase
     {
         return $this->appleIap->verifySignedTransaction($signedTransactionInfo, $consumable);
@@ -61,6 +80,20 @@ class MobileMonetizationManager
     public function verifyGoogleSubscription(string $subscriptionId, string $purchaseToken): VerifiedPurchase
     {
         return $this->googlePlay->verifySubscription($subscriptionId, $purchaseToken);
+    }
+
+    public function verifyGoogleSubscriptionOffer(
+        string $subscriptionId,
+        string $purchaseToken,
+        ?string $expectedBasePlanId = null,
+        ?string $expectedOfferId = null
+    ): array {
+        return $this->googlePlay->verifySubscriptionOffer($subscriptionId, $purchaseToken, $expectedBasePlanId, $expectedOfferId);
+    }
+
+    public function googleSubscriptionOfferTokenNotice(): array
+    {
+        return $this->googlePlay->googleSubscriptionOfferTokenNotice();
     }
 
     public function acknowledgeGoogleProduct(string $productId, string $purchaseToken, ?string $developerPayload = null): void

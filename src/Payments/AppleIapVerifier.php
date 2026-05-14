@@ -29,6 +29,75 @@ class AppleIapVerifier
         return $this->verifySignedTransaction($signedTransactionInfo, $consumable);
     }
 
+    public function promotionalOfferSignature(
+        string $productIdentifier,
+        string $subscriptionOfferId,
+        string $appAccountToken = '',
+        ?string $nonce = null,
+        ?int $timestamp = null
+    ): array {
+        foreach (['bundle_id', 'key_id'] as $key) {
+            if (empty($this->config[$key])) {
+                throw new MobileMonetizationException('Apple promotional offer config is incomplete.');
+            }
+        }
+
+        $nonce ??= $this->uuid();
+        $timestamp ??= (int) floor(microtime(true) * 1000);
+        $separator = json_decode('"\u2063"');
+        $payload = implode($separator, [
+            $this->config['bundle_id'],
+            $this->config['key_id'],
+            $productIdentifier,
+            $subscriptionOfferId,
+            strtolower($appAccountToken),
+            strtolower($nonce),
+            (string) $timestamp,
+        ]);
+
+        $signature = '';
+        $signed = openssl_sign($payload, $signature, $this->privateKey(), OPENSSL_ALGO_SHA256);
+        if (!$signed) {
+            throw new MobileMonetizationException('Unable to sign Apple promotional offer.');
+        }
+
+        return [
+            'key_identifier' => $this->config['key_id'],
+            'nonce' => $nonce,
+            'timestamp' => $timestamp,
+            'signature' => base64_encode($signature),
+        ];
+    }
+
+    public function promotionalOfferJws(
+        string $productId,
+        string $offerIdentifier,
+        ?string $transactionId = null,
+        ?string $nonce = null
+    ): string {
+        foreach (['issuer_id', 'key_id', 'bundle_id'] as $key) {
+            if (empty($this->config[$key])) {
+                throw new MobileMonetizationException('Apple promotional offer JWS config is incomplete.');
+            }
+        }
+
+        $claims = [
+            'iss' => $this->config['issuer_id'],
+            'iat' => time(),
+            'aud' => 'promotional-offer',
+            'bid' => $this->config['bundle_id'],
+            'nonce' => $nonce ?? $this->uuid(),
+            'productId' => $productId,
+            'offerIdentifier' => $offerIdentifier,
+        ];
+
+        if ($transactionId !== null && $transactionId !== '') {
+            $claims['transactionId'] = $transactionId;
+        }
+
+        return JWT::encode($claims, $this->privateKey(), 'ES256', $this->config['key_id']);
+    }
+
     public function verifySignedTransaction(string $signedTransactionInfo, ?bool $consumable = null): VerifiedPurchase
     {
         $claims = $this->decodeAppleJws($signedTransactionInfo);
@@ -143,5 +212,14 @@ class AppleIapVerifier
         }
 
         throw new MobileMonetizationException('Apple private key is not configured.');
+    }
+
+    private function uuid(): string
+    {
+        $data = random_bytes(16);
+        $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
+        $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
+
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 }
