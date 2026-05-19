@@ -7,6 +7,9 @@ return [
         'key_id' => env('APPLE_KEY_ID'),
         'private_key' => env('APPLE_PRIVATE_KEY'),
         'private_key_path' => env('APPLE_PRIVATE_KEY_PATH'),
+        'promotional_offer_key_id' => env('APPLE_PROMOTIONAL_OFFER_KEY_ID', env('APPLE_KEY_ID')),
+        'promotional_offer_private_key' => env('APPLE_PROMOTIONAL_OFFER_PRIVATE_KEY'),
+        'promotional_offer_private_key_path' => env('APPLE_PROMOTIONAL_OFFER_PRIVATE_KEY_PATH'),
         'environment' => env('APPLE_IAP_ENVIRONMENT', 'production'),
     ],
 

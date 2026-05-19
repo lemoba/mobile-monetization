@@ -36,18 +36,17 @@ class AppleIapVerifier
         ?string $nonce = null,
         ?int $timestamp = null
     ): array {
-        foreach (['bundle_id', 'key_id'] as $key) {
-            if (empty($this->config[$key])) {
-                throw new MobileMonetizationException('Apple promotional offer config is incomplete.');
-            }
+        if (empty($this->config['bundle_id']) || empty($this->promotionalOfferKeyId())) {
+            throw new MobileMonetizationException('Apple promotional offer config is incomplete.');
         }
 
         $nonce ??= $this->uuid();
         $timestamp ??= (int) floor(microtime(true) * 1000);
+        $keyId = $this->promotionalOfferKeyId();
         $separator = json_decode('"\u2063"');
         $payload = implode($separator, [
             $this->config['bundle_id'],
-            $this->config['key_id'],
+            $keyId,
             $productIdentifier,
             $subscriptionOfferId,
             strtolower($appAccountToken),
@@ -56,13 +55,13 @@ class AppleIapVerifier
         ]);
 
         $signature = '';
-        $signed = openssl_sign($payload, $signature, $this->privateKey(), OPENSSL_ALGO_SHA256);
+        $signed = openssl_sign($payload, $signature, $this->promotionalOfferPrivateKey(), OPENSSL_ALGO_SHA256);
         if (!$signed) {
             throw new MobileMonetizationException('Unable to sign Apple promotional offer.');
         }
 
         return [
-            'key_identifier' => $this->config['key_id'],
+            'keyIdentifier' => $keyId,
             'nonce' => $nonce,
             'timestamp' => $timestamp,
             'signature' => base64_encode($signature),
@@ -212,6 +211,24 @@ class AppleIapVerifier
         }
 
         throw new MobileMonetizationException('Apple private key is not configured.');
+    }
+
+    private function promotionalOfferKeyId(): ?string
+    {
+        return $this->config['promotional_offer_key_id'] ?? $this->config['key_id'] ?? null;
+    }
+
+    private function promotionalOfferPrivateKey(): string
+    {
+        if (!empty($this->config['promotional_offer_private_key'])) {
+            return str_replace('\\n', "\n", $this->config['promotional_offer_private_key']);
+        }
+
+        if (!empty($this->config['promotional_offer_private_key_path']) && is_readable($this->config['promotional_offer_private_key_path'])) {
+            return file_get_contents($this->config['promotional_offer_private_key_path']);
+        }
+
+        return $this->privateKey();
     }
 
     private function uuid(): string

@@ -54,6 +54,9 @@ jobs:
       - name: Run LevelPlay tests
         run: php tests/LevelPlayServiceTest.php
 
+      - name: Run Apple promotional offer tests
+        run: php tests/ApplePromotionalOfferSignatureTest.php
+
       - name: Run package structure tests
         run: php tests/PackageStructureTest.php
 
