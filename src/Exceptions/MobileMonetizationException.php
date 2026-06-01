@@ -11,8 +11,16 @@ class MobileMonetizationException extends RuntimeException
         parent::__construct($message, $code);
     }
 
-    public function context(): mixed
+    public function context(): array
     {
-        return $this->context;
+        if (is_array($this->context)) {
+            return $this->context;
+        }
+
+        if ($this->context === null) {
+            return [];
+        }
+
+        return ['context' => $this->context];
     }
 }
