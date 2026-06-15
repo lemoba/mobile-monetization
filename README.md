@@ -238,42 +238,136 @@ MobileMonetization::applePromotionalOfferJws(
 
 Android Google Play 一次性消耗商品：
 
+一次性消耗商品适合金币、钻石、体力、道具包等可以反复购买的商品。服务端必须先请求 Google Play Developer API 验证 `purchaseToken`，验单成功后还要调用 Google 的 consume 接口；否则 Google Play 侧该购买 token 未被消费，同一个商品可能无法再次购买。
+
+推荐使用 `verifyAndConsumeGoogleProduct()` 一次完成“验单 + 消费”：
+
 ```php
 use Lemoba\MobileMonetization\Facades\MobileMonetization;
 
-$purchase = MobileMonetization::verifyGoogleProduct($productId, $purchaseToken);
+$purchase = MobileMonetization::verifyAndConsumeGoogleProduct(
+    productId: 'coins_100',
+    purchaseToken: $purchaseToken,
+);
 
 if ($purchase->valid) {
-    // 调用方先按 transaction_id 做唯一幂等，再发金币。
-    MobileMonetization::acknowledgeGoogleProduct($productId, $purchaseToken);
-    MobileMonetization::consumeGoogleProduct($productId, $purchaseToken);
+    // 1. 用 transaction_id 做唯一索引或幂等锁。
+    // 2. 根据 product_id 查自己的金币配置。
+    // 3. 写订单、写金币流水、增加余额。
 }
 ```
 
-Android Google Play VIP 周/月/年订阅：
+`verifyAndConsumeGoogleProduct()` 的行为：
+
+- 先调用 Google Play Developer API 验证一次性商品 `purchaseToken`。
+- 只有 Google 返回已购买状态时，才会继续调用 `consumeGoogleProduct()`。
+- 返回 `VerifiedPurchase`，调用方仍然要按 `transaction_id` 做业务幂等。
+- consume 只代表释放 Google Play 侧的再次购买能力，不代表你的业务已经发货；发货仍然由调用方自己完成。
+
+如果业务需要把“验单、入库、发货、消费”拆成自己的事务流程，也可以手动调用：
 
 ```php
-$purchase = MobileMonetization::verifyGoogleSubscription($productId, $purchaseToken);
+$purchase = MobileMonetization::verifyGoogleProduct(
+    productId: 'coins_100',
+    purchaseToken: $purchaseToken,
+);
+
+if ($purchase->valid) {
+    // 调用方完成自己的幂等入库 / 发货流程。
+
+    MobileMonetization::consumeGoogleProduct(
+        productId: 'coins_100',
+        purchaseToken: $purchaseToken,
+    );
+}
+```
+
+一次性商品注意事项：
+
+- 消耗型商品必须 consume，不需要订阅那种续期状态维护。
+- `consumeGoogleProduct()` 只用于一次性商品，不用于订阅。
+- 不要只信任客户端返回结果；服务端必须使用 `purchaseToken` 请求 Google 接口验单。
+- 发货前要用 `transaction_id` 或订单号建唯一索引，避免客户端重复请求导致重复发货。
+- 如果使用手动流程，建议只有在本地订单和发货幂等逻辑已经处理完成后，再调用 consume。
+
+Android Google Play VIP 周/月/年订阅：
+
+订阅适合 VIP 周卡、月卡、年卡等周期性权益。订阅不是消耗品，不需要也不能调用 `consumeGoogleProduct()`。服务端要做的是验证 `purchaseToken`，读取 Google 返回的订阅状态和到期时间，然后更新自己系统里的会员权益。
+
+```php
+$purchase = MobileMonetization::verifyGoogleSubscription(
+    subscriptionId: 'vip_month',
+    purchaseToken: $purchaseToken,
+);
 
 if ($purchase->active()) {
-    // 调用方按 original_transaction_id 或 transaction_id 更新自己的会员到期时间。
+    // 1. 用 original_transaction_id 或 transaction_id 做幂等。
+    // 2. 用 expires_at_ms 更新自己的会员到期时间。
+    // 3. 保存 raw 字段，方便排查 Google Play 返回的原始状态。
 }
+```
 
-// Google Play 订阅优惠没有类似 Apple 的服务端签名。
-// 客户端应使用 Play Billing ProductDetails.SubscriptionOfferDetails 返回的 offerToken 发起购买；
-// 服务端在购买后校验 purchaseToken，并检查 Google 返回的 basePlanId / offerId。
+订阅返回的 `VerifiedPurchase` 里，常用字段包括：
+
+- `product_id`：Google Play Console 中的订阅商品 ID。
+- `transaction_id`：Google 返回的最新订单 ID；没有时回退到 `purchaseToken`。
+- `original_transaction_id`：关联购买 token 或最新订单 ID；可用于串联同一订阅链路。
+- `valid`：当前订阅是否处于可用状态。
+- `active()`：`valid` 为真，且未过期时返回真。
+- `expires_at_ms`：当前订阅周期到期时间，毫秒时间戳。
+- `raw`：Google Play Developer API 的完整响应。
+
+订阅注意事项：
+
+- 订阅不调用 `consumeGoogleProduct()`。
+- 订阅权益应按 `expires_at_ms` 更新，不要只保存“已购买”布尔值。
+- 订阅可能续期、宽限期、过期、取消、换档，建议保留 `raw` 方便后续排查。
+- 当前包提供订阅验单和优惠校验；如果业务要求服务端 acknowledge 订阅，需要使用 Google 订阅专用 acknowledge 接口，不能使用 `acknowledgeGoogleProduct()`。
+
+Android Google Play 订阅优惠：
+
+Google Play 订阅优惠和 Apple promotional offer 不一样。Apple 需要服务端生成签名；Google Play 订阅优惠不需要服务端签名，服务端也拿不到一个需要签名后返回给客户端的优惠参数。
+
+Google Play 订阅优惠流程：
+
+1. 客户端通过 Play Billing 查询 `ProductDetails`。
+2. 客户端从 `ProductDetails.SubscriptionOfferDetails` 中选择一个优惠。
+3. 客户端使用该优惠的 `offerToken` 发起购买。
+4. 购买成功后，客户端把 Google 返回的 `purchaseToken` 发给服务端。
+5. 服务端调用 `verifyGoogleSubscriptionOffer()` 验证该购买确实来自期望的 `basePlanId` / `offerId`。
+
+服务端示例：
+
+```php
 $offer = MobileMonetization::verifyGoogleSubscriptionOffer(
-    subscriptionId: $productId,
+    subscriptionId: 'vip_month',
     purchaseToken: $purchaseToken,
     expectedBasePlanId: 'monthly',
     expectedOfferId: 'intro_month_50',
 );
 
-$offer['purchase']->active();
-$offer['base_plan_id']; // monthly
-$offer['offer_id'];     // intro_month_50
-$offer['offer_tags'];   // Google Play Console 配置的标签
+if ($offer['purchase']->active()) {
+    // 确认 base_plan_id / offer_id 匹配后，更新会员权益。
+    $offer['base_plan_id']; // monthly
+    $offer['offer_id'];     // intro_month_50
+    $offer['offer_tags'];   // Google Play Console 配置的标签
+}
 ```
+
+`verifyGoogleSubscriptionOffer()` 返回：
+
+```php
+[
+    'purchase' => $purchase,
+    'base_plan_id' => 'monthly',
+    'offer_id' => 'intro_month_50',
+    'offer_tags' => [],
+    'pricing_phase' => null,
+    'raw_offer_details' => [],
+]
+```
+
+如果传入了 `expectedBasePlanId` 或 `expectedOfferId`，服务端会与 Google 返回的 `offerDetails` 对比；不一致会抛出异常，不应该给用户发放该优惠权益。
 
 统一返回对象：
 

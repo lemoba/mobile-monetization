@@ -46,6 +46,17 @@ class GooglePlayVerifier
         );
     }
 
+    public function verifyAndConsumeProduct(string $productId, string $purchaseToken): VerifiedPurchase
+    {
+        $purchase = $this->verifyProduct($productId, $purchaseToken);
+
+        if ($purchase->valid) {
+            $this->consumeProduct($productId, $purchaseToken);
+        }
+
+        return $purchase;
+    }
+
     public function verifySubscription(string $subscriptionId, string $purchaseToken): VerifiedPurchase
     {
         $packageName = $this->packageName();

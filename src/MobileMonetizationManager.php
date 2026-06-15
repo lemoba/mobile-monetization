@@ -77,6 +77,11 @@ class MobileMonetizationManager
         return $this->googlePlay->verifyProduct($productId, $purchaseToken);
     }
 
+    public function verifyAndConsumeGoogleProduct(string $productId, string $purchaseToken): VerifiedPurchase
+    {
+        return $this->googlePlay->verifyAndConsumeProduct($productId, $purchaseToken);
+    }
+
     public function verifyGoogleSubscription(string $subscriptionId, string $purchaseToken): VerifiedPurchase
     {
         return $this->googlePlay->verifySubscription($subscriptionId, $purchaseToken);

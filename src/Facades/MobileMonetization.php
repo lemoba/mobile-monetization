@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static \Lemoba\MobileMonetization\Payments\VerifiedPurchase verifyAppleSignedTransaction(string $signedTransactionInfo, ?bool $consumable = null)
  * @method static array decodeAppleSignedTransaction(string $signedTransactionInfo)
  * @method static \Lemoba\MobileMonetization\Payments\VerifiedPurchase verifyGoogleProduct(string $productId, string $purchaseToken)
+ * @method static \Lemoba\MobileMonetization\Payments\VerifiedPurchase verifyAndConsumeGoogleProduct(string $productId, string $purchaseToken)
  * @method static \Lemoba\MobileMonetization\Payments\VerifiedPurchase verifyGoogleSubscription(string $subscriptionId, string $purchaseToken)
  * @method static array verifyGoogleSubscriptionOffer(string $subscriptionId, string $purchaseToken, ?string $expectedBasePlanId = null, ?string $expectedOfferId = null)
  * @method static array googleSubscriptionOfferTokenNotice()
