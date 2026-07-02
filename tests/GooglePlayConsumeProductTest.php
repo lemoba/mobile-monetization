@@ -27,8 +27,11 @@ class GooglePlayConsumeProductTestVerifier extends GooglePlayVerifier
         parent::__construct([]);
     }
 
-    public function verifyProduct(string $productId, string $purchaseToken): VerifiedPurchase
+    public function verifyProduct(?string $productId = null, ?string $purchaseToken = null): VerifiedPurchase
     {
+        $purchaseToken = $purchaseToken ?? $productId;
+        $productId = $purchaseToken === $productId ? 'coins_100' : $productId;
+
         return new VerifiedPurchase(
             platform: 'android',
             productId: $productId,
@@ -57,3 +60,9 @@ $invalidPurchase = $invalidVerifier->verifyAndConsumeProduct('coins_100', 'token
 
 assertGoogleConsumeSame(false, $invalidPurchase->valid, 'Invalid Google Play product purchase should be returned.');
 assertGoogleConsumeSame(0, $invalidVerifier->consumeCalls, 'Invalid Google Play product purchase should not be consumed.');
+
+$tokenOnlyVerifier = new GooglePlayConsumeProductTestVerifier(true);
+$tokenOnlyPurchase = $tokenOnlyVerifier->verifyAndConsumeProduct('token-only');
+
+assertGoogleConsumeSame('coins_100', $tokenOnlyPurchase->productId, 'Token-only Google Play product verification should use the product ID from the verified purchase.');
+assertGoogleConsumeSame(1, $tokenOnlyVerifier->consumeCalls, 'Token-only valid Google Play product purchase should be consumed.');

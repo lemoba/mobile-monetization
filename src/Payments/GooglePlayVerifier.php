@@ -17,8 +17,9 @@ class GooglePlayVerifier
     {
     }
 
-    public function verifyProduct(string $productId, string $purchaseToken): VerifiedPurchase
+    public function verifyProduct(?string $productId = null, ?string $purchaseToken = null): VerifiedPurchase
     {
+        [$productId, $purchaseToken] = $this->resolveProductTokenArguments($productId, $purchaseToken);
         $packageName = $this->packageName();
         $path = sprintf(
             '%s/%s/purchases/productsv2/tokens/%s',
@@ -30,10 +31,15 @@ class GooglePlayVerifier
         $data = $this->get($path);
         $purchaseState = $data['purchaseStateContext']['purchaseState'] ?? null;
         $lineItem = $data['productLineItem'][0] ?? [];
+        $resolvedProductId = $lineItem['productId'] ?? $productId;
+
+        if ($resolvedProductId === null || $resolvedProductId === '') {
+            throw new MobileMonetizationException('Google Play product ID was not returned for this purchase token.');
+        }
 
         return new VerifiedPurchase(
             platform: 'android',
-            productId: $lineItem['productId'] ?? $productId,
+            productId: $resolvedProductId,
             transactionId: $data['orderId'] ?? $purchaseToken,
             originalTransactionId: $data['orderId'] ?? $purchaseToken,
             type: 'consumable',
@@ -43,15 +49,17 @@ class GooglePlayVerifier
             expiresAtMs: null,
             environment: $data['testPurchaseContext']['fopType'] ?? null,
             raw: $data,
+            externalProfileId: $data['obfuscatedExternalProfileId'] ?? null,
         );
     }
 
-    public function verifyAndConsumeProduct(string $productId, string $purchaseToken): VerifiedPurchase
+    public function verifyAndConsumeProduct(?string $productId = null, ?string $purchaseToken = null): VerifiedPurchase
     {
+        [, $resolvedPurchaseToken] = $this->resolveProductTokenArguments($productId, $purchaseToken);
         $purchase = $this->verifyProduct($productId, $purchaseToken);
 
         if ($purchase->valid) {
-            $this->consumeProduct($productId, $purchaseToken);
+            $this->consumeProduct($purchase->productId, $resolvedPurchaseToken);
         }
 
         return $purchase;
@@ -232,5 +240,18 @@ class GooglePlayVerifier
         }
 
         return $this->config['package_name'];
+    }
+
+    private function resolveProductTokenArguments(?string $productId, ?string $purchaseToken): array
+    {
+        if ($productId === null && $purchaseToken === null) {
+            throw new MobileMonetizationException('Google Play purchase token is required.');
+        }
+
+        if ($purchaseToken === null) {
+            return [null, $productId];
+        }
+
+        return [$productId, $purchaseToken];
     }
 }

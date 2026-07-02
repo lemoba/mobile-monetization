@@ -257,6 +257,23 @@ if ($purchase->valid) {
 }
 ```
 
+如果客户端没有单独上传 `product_id`，也可以只传 `purchaseToken`。服务端会调用 Google Play `purchases.productsv2` 查询购买信息，并从返回的 `productLineItem[0].productId` 补出商品 ID：
+
+```php
+$purchase = MobileMonetization::verifyAndConsumeGoogleProduct(
+    purchaseToken: $purchaseToken,
+);
+
+if ($purchase->valid) {
+    $orderNo = $purchase->externalProfileId; // 客户端 setObfuscatedProfileId() 传入的业务订单号。
+    $productId = $purchase->productId;       // Google Play 返回的商品 ID。
+
+    // 1. 根据 $orderNo 查自己的订单。
+    // 2. 校验订单里的 product_id 是否等于 $productId。
+    // 3. 完成幂等发货。
+}
+```
+
 `verifyAndConsumeGoogleProduct()` 的行为：
 
 - 先调用 Google Play Developer API 验证一次性商品 `purchaseToken`。
@@ -268,7 +285,6 @@ if ($purchase->valid) {
 
 ```php
 $purchase = MobileMonetization::verifyGoogleProduct(
-    productId: 'coins_100',
     purchaseToken: $purchaseToken,
 );
 
@@ -276,7 +292,7 @@ if ($purchase->valid) {
     // 调用方完成自己的幂等入库 / 发货流程。
 
     MobileMonetization::consumeGoogleProduct(
-        productId: 'coins_100',
+        productId: $purchase->productId,
         purchaseToken: $purchaseToken,
     );
 }

@@ -16,6 +16,7 @@ class VerifiedPurchase
         public readonly ?int $expiresAtMs = null,
         public readonly ?string $environment = null,
         public readonly array $raw = [],
+        public readonly ?string $externalProfileId = null,
     ) {
     }
 
@@ -38,6 +39,7 @@ class VerifiedPurchase
             'purchased_at_ms' => $this->purchasedAtMs,
             'expires_at_ms' => $this->expiresAtMs,
             'environment' => $this->environment,
+            'external_profile_id' => $this->externalProfileId,
             'raw' => $this->raw,
         ];
     }

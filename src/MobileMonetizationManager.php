@@ -72,12 +72,12 @@ class MobileMonetizationManager
         return $this->appleIap->decodeAppleJws($signedTransactionInfo);
     }
 
-    public function verifyGoogleProduct(string $productId, string $purchaseToken): VerifiedPurchase
+    public function verifyGoogleProduct(?string $productId = null, ?string $purchaseToken = null): VerifiedPurchase
     {
         return $this->googlePlay->verifyProduct($productId, $purchaseToken);
     }
 
-    public function verifyAndConsumeGoogleProduct(string $productId, string $purchaseToken): VerifiedPurchase
+    public function verifyAndConsumeGoogleProduct(?string $productId = null, ?string $purchaseToken = null): VerifiedPurchase
     {
         return $this->googlePlay->verifyAndConsumeProduct($productId, $purchaseToken);
     }
