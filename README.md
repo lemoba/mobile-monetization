@@ -240,6 +240,45 @@ Android Google Play 一次性消耗商品：
 
 一次性消耗商品适合金币、钻石、体力、道具包等可以反复购买的商品。服务端必须先请求 Google Play Developer API 验证 `purchaseToken`，验单成功后还要调用 Google 的 consume 接口；否则 Google Play 侧该购买 token 未被消费，同一个商品可能无法再次购买。
 
+如果客户端把业务订单号放进 Google Billing 的 `obfuscatedExternalProfileId`，服务端可以先只用 `purchaseToken` 解析订单号，再查询自己的订单表判断这笔订单是订阅还是一次性消耗商品：
+
+```php
+use Lemoba\MobileMonetization\Facades\MobileMonetization;
+
+$parsed = MobileMonetization::parseGoogleOrderNo($purchaseToken);
+
+$orderNo = $parsed['order_no'];     // 客户端放入 obfuscatedExternalProfileId 的业务订单号。
+$productId = $parsed['product_id']; // Google Play 返回的商品 ID。
+
+// 1. 根据 $orderNo 查询自己的订单。
+// 2. 校验订单里的 product_id 是否等于 $productId。
+// 3. 根据订单类型选择订阅验单或一次性商品验单。
+if ($order->is_subscription) {
+    $purchase = MobileMonetization::verifyGoogleSubscription(
+        productId: $productId,
+        purchaseToken: $purchaseToken,
+    );
+} else {
+    $purchase = MobileMonetization::verifyAndConsumeGoogleProduct(
+        productId: $productId,
+        purchaseToken: $purchaseToken,
+    );
+}
+```
+
+`parseGoogleOrderNo()` 返回：
+
+```php
+[
+    'order_no' => 'ORDER_202601010001',
+    'product_id' => 'vip_month',
+    'type' => 'subscription', // 或 consumable
+    'transaction_id' => 'GPA.0000-0000-0000-00000',
+    'purchase_token' => $purchaseToken,
+    'raw' => $googleResponse,
+]
+```
+
 推荐使用 `verifyAndConsumeGoogleProduct()` 一次完成“验单 + 消费”：
 
 ```php
@@ -312,7 +351,7 @@ Android Google Play VIP 周/月/年订阅：
 
 ```php
 $purchase = MobileMonetization::verifyGoogleSubscription(
-    subscriptionId: 'vip_month',
+    productId: 'vip_month',
     purchaseToken: $purchaseToken,
 );
 
@@ -332,9 +371,11 @@ if ($purchase->active()) {
 - `active()`：`valid` 为真，且未过期时返回真。
 - `expires_at_ms`：当前订阅周期到期时间，毫秒时间戳。
 - `raw`：Google Play Developer API 的完整响应。
+- `external_profile_id`：客户端放入 `obfuscatedExternalProfileId` 的业务订单号。
 
 订阅注意事项：
 
+- `verifyGoogleSubscription()` 的 `productId` 就是 Google Play Console 里的订阅商品 ID；旧的 `subscriptionId` 命名参数仍然可用。
 - 订阅不调用 `consumeGoogleProduct()`。
 - 订阅权益应按 `expires_at_ms` 更新，不要只保存“已购买”布尔值。
 - 订阅可能续期、宽限期、过期、取消、换档，建议保留 `raw` 方便后续排查。
@@ -356,7 +397,7 @@ Google Play 订阅优惠流程：
 
 ```php
 $offer = MobileMonetization::verifyGoogleSubscriptionOffer(
-    subscriptionId: 'vip_month',
+    productId: 'vip_month',
     purchaseToken: $purchaseToken,
     expectedBasePlanId: 'monthly',
     expectedOfferId: 'intro_month_50',

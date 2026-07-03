@@ -82,18 +82,24 @@ class MobileMonetizationManager
         return $this->googlePlay->verifyAndConsumeProduct($productId, $purchaseToken);
     }
 
-    public function verifyGoogleSubscription(string $subscriptionId, string $purchaseToken): VerifiedPurchase
+    public function parseGoogleOrderNo(string $purchaseToken): array
     {
-        return $this->googlePlay->verifySubscription($subscriptionId, $purchaseToken);
+        return $this->googlePlay->parseOrderNo($purchaseToken);
+    }
+
+    public function verifyGoogleSubscription(?string $subscriptionId = null, ?string $purchaseToken = null, ?string $productId = null): VerifiedPurchase
+    {
+        return $this->googlePlay->verifySubscription($subscriptionId, $purchaseToken, $productId);
     }
 
     public function verifyGoogleSubscriptionOffer(
-        string $subscriptionId,
-        string $purchaseToken,
+        ?string $subscriptionId = null,
+        ?string $purchaseToken = null,
         ?string $expectedBasePlanId = null,
-        ?string $expectedOfferId = null
+        ?string $expectedOfferId = null,
+        ?string $productId = null
     ): array {
-        return $this->googlePlay->verifySubscriptionOffer($subscriptionId, $purchaseToken, $expectedBasePlanId, $expectedOfferId);
+        return $this->googlePlay->verifySubscriptionOffer($subscriptionId, $purchaseToken, $expectedBasePlanId, $expectedOfferId, $productId);
     }
 
     public function googleSubscriptionOfferTokenNotice(): array

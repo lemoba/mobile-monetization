@@ -20,15 +20,7 @@ class GooglePlayVerifier
     public function verifyProduct(?string $productId = null, ?string $purchaseToken = null): VerifiedPurchase
     {
         [$productId, $purchaseToken] = $this->resolveProductTokenArguments($productId, $purchaseToken);
-        $packageName = $this->packageName();
-        $path = sprintf(
-            '%s/%s/purchases/productsv2/tokens/%s',
-            self::API_ROOT,
-            rawurlencode($packageName),
-            rawurlencode($purchaseToken)
-        );
-
-        $data = $this->get($path);
+        $data = $this->getProductPurchase($purchaseToken);
         $purchaseState = $data['purchaseStateContext']['purchaseState'] ?? null;
         $lineItem = $data['productLineItem'][0] ?? [];
         $resolvedProductId = $lineItem['productId'] ?? $productId;
@@ -49,7 +41,7 @@ class GooglePlayVerifier
             expiresAtMs: null,
             environment: $data['testPurchaseContext']['fopType'] ?? null,
             raw: $data,
-            externalProfileId: $data['obfuscatedExternalProfileId'] ?? null,
+            externalProfileId: $this->productExternalProfileId($data),
         );
     }
 
@@ -65,24 +57,61 @@ class GooglePlayVerifier
         return $purchase;
     }
 
-    public function verifySubscription(string $subscriptionId, string $purchaseToken): VerifiedPurchase
+    public function parseOrderNo(string $purchaseToken): array
     {
-        $packageName = $this->packageName();
-        $path = sprintf(
-            '%s/%s/purchases/subscriptionsv2/tokens/%s',
-            self::API_ROOT,
-            rawurlencode($packageName),
-            rawurlencode($purchaseToken)
-        );
+        try {
+            $data = $this->getProductPurchase($purchaseToken);
+            $lineItem = $data['productLineItem'][0] ?? [];
 
-        $data = $this->get($path);
+            return [
+                'order_no' => $this->productExternalProfileId($data),
+                'product_id' => $lineItem['productId'] ?? null,
+                'type' => 'consumable',
+                'transaction_id' => $data['orderId'] ?? $purchaseToken,
+                'purchase_token' => $purchaseToken,
+                'raw' => $data,
+            ];
+        } catch (MobileMonetizationException $productException) {
+            try {
+                $data = $this->getSubscriptionPurchase($purchaseToken);
+                $lineItem = $data['lineItems'][0] ?? [];
+
+                return [
+                    'order_no' => $this->subscriptionExternalProfileId($data),
+                    'product_id' => $lineItem['productId'] ?? null,
+                    'type' => 'subscription',
+                    'transaction_id' => $data['latestOrderId'] ?? $purchaseToken,
+                    'purchase_token' => $purchaseToken,
+                    'raw' => $data,
+                ];
+            } catch (MobileMonetizationException $subscriptionException) {
+                throw new MobileMonetizationException('Google Play order number could not be parsed from this purchase token.', 400, [
+                    'product_error' => [
+                        'message' => $productException->getMessage(),
+                        'code' => $productException->getCode(),
+                        'context' => $productException->context(),
+                    ],
+                    'subscription_error' => [
+                        'message' => $subscriptionException->getMessage(),
+                        'code' => $subscriptionException->getCode(),
+                        'context' => $subscriptionException->context(),
+                    ],
+                ]);
+            }
+        }
+    }
+
+    public function verifySubscription(?string $subscriptionId = null, ?string $purchaseToken = null, ?string $productId = null): VerifiedPurchase
+    {
+        [$productId, $purchaseToken] = $this->resolveSubscriptionTokenArguments($subscriptionId, $purchaseToken, $productId);
+        $data = $this->getSubscriptionPurchase($purchaseToken);
         $lineItem = $data['lineItems'][0] ?? [];
         $expiry = $lineItem['expiryTime'] ?? null;
         $state = $data['subscriptionState'] ?? null;
 
         return new VerifiedPurchase(
             platform: 'android',
-            productId: $lineItem['productId'] ?? $subscriptionId,
+            productId: $lineItem['productId'] ?? $productId,
             transactionId: $data['latestOrderId'] ?? $purchaseToken,
             originalTransactionId: $data['linkedPurchaseToken'] ?? $data['latestOrderId'] ?? $purchaseToken,
             type: 'subscription',
@@ -92,16 +121,18 @@ class GooglePlayVerifier
             expiresAtMs: $expiry ? strtotime($expiry) * 1000 : null,
             environment: $data['testPurchase']['testPurchase'] ?? null,
             raw: $data,
+            externalProfileId: $this->subscriptionExternalProfileId($data),
         );
     }
 
     public function verifySubscriptionOffer(
-        string $subscriptionId,
-        string $purchaseToken,
+        ?string $subscriptionId = null,
+        ?string $purchaseToken = null,
         ?string $expectedBasePlanId = null,
-        ?string $expectedOfferId = null
+        ?string $expectedOfferId = null,
+        ?string $productId = null
     ): array {
-        $purchase = $this->verifySubscription($subscriptionId, $purchaseToken);
+        $purchase = $this->verifySubscription(subscriptionId: $subscriptionId, purchaseToken: $purchaseToken, productId: $productId);
         $lineItem = $purchase->raw['lineItems'][0] ?? [];
         $offerDetails = $lineItem['offerDetails'] ?? [];
         $basePlanId = $offerDetails['basePlanId'] ?? null;
@@ -180,6 +211,32 @@ class GooglePlayVerifier
         return $response->json();
     }
 
+    private function getProductPurchase(string $purchaseToken): array
+    {
+        $packageName = $this->packageName();
+        $path = sprintf(
+            '%s/%s/purchases/productsv2/tokens/%s',
+            self::API_ROOT,
+            rawurlencode($packageName),
+            rawurlencode($purchaseToken)
+        );
+
+        return $this->get($path);
+    }
+
+    private function getSubscriptionPurchase(string $purchaseToken): array
+    {
+        $packageName = $this->packageName();
+        $path = sprintf(
+            '%s/%s/purchases/subscriptionsv2/tokens/%s',
+            self::API_ROOT,
+            rawurlencode($packageName),
+            rawurlencode($purchaseToken)
+        );
+
+        return $this->get($path);
+    }
+
     private function post(string $url, array $payload): void
     {
         $response = Http::withToken($this->accessToken())->acceptJson()->timeout(15)->post($url, $payload);
@@ -253,5 +310,34 @@ class GooglePlayVerifier
         }
 
         return [$productId, $purchaseToken];
+    }
+
+    private function resolveSubscriptionTokenArguments(?string $subscriptionId, ?string $purchaseToken, ?string $productId): array
+    {
+        $resolvedProductId = $productId ?? $subscriptionId;
+
+        if ($resolvedProductId === null && $purchaseToken === null) {
+            throw new MobileMonetizationException('Google Play purchase token is required.');
+        }
+
+        if ($purchaseToken === null) {
+            return [null, $resolvedProductId];
+        }
+
+        return [$resolvedProductId, $purchaseToken];
+    }
+
+    private function productExternalProfileId(array $data): ?string
+    {
+        return $data['obfuscatedExternalProfileId'] ?? null;
+    }
+
+    private function subscriptionExternalProfileId(array $data): ?string
+    {
+        $identifiers = $data['externalAccountIdentifiers'] ?? [];
+
+        return $identifiers['obfuscatedExternalProfileId']
+            ?? $data['obfuscatedExternalProfileId']
+            ?? null;
     }
 }
